@@ -14,6 +14,7 @@ export class PokedexRenderer {
   renderResults(results, onSelect, slot = "primary") {
     const resultsElement = this.getResultsElement(slot);
     resultsElement.innerHTML = "";
+    resultsElement.classList.remove("hidden");
     if (!results.length) {
       const item = document.createElement("li");
       item.className = "px-4 py-3 text-sm text-slate-500";
@@ -40,7 +41,9 @@ export class PokedexRenderer {
   }
 
   clearResults(slot = "primary") {
-    this.getResultsElement(slot).innerHTML = "";
+    const resultsElement = this.getResultsElement(slot);
+    resultsElement.innerHTML = "";
+    resultsElement.classList.add("hidden");
   }
 
   renderLoadingProfile(compareEnabled = false, slot = "primary", primaryProfile = null, secondaryProfile = null) {
@@ -57,12 +60,15 @@ export class PokedexRenderer {
   }
 
   renderComparison(primaryProfile, secondaryProfile, loadingMarkup = "", loadingSlot = "") {
+    const comparisonResult = primaryProfile && secondaryProfile
+      ? evaluateComparison(primaryProfile, secondaryProfile)
+      : null;
     this.profileElement.innerHTML = `
       <article class="grid gap-5">
         ${primaryProfile && secondaryProfile ? renderStatComparison(primaryProfile, secondaryProfile) : ""}
         <div class="comparison-layout">
-          ${renderComparisonPanel("Pokemon A", primaryProfile, loadingSlot === "primary" ? loadingMarkup : "")}
-          ${renderComparisonPanel("Pokemon B", secondaryProfile, loadingSlot === "secondary" ? loadingMarkup : "")}
+          ${renderComparisonPanel("Pokemon A", primaryProfile, loadingSlot === "primary" ? loadingMarkup : "", comparisonResult)}
+          ${renderComparisonPanel("Pokemon B", secondaryProfile, loadingSlot === "secondary" ? loadingMarkup : "", comparisonResult)}
         </div>
       </article>
     `;
@@ -72,6 +78,7 @@ export class PokedexRenderer {
     if (secondaryProfile) {
       this.bindNatureSelector(secondaryProfile, this.profileElement.querySelector('[data-profile-slot="secondary"]'));
     }
+    this.bindSectionToggles(this.profileElement);
   }
 
   getResultsElement(slot) {
@@ -97,13 +104,7 @@ export class PokedexRenderer {
             <div class="mt-4 flex flex-wrap gap-2" aria-label="Tipos">
               ${profile.types.map((type) => `<span class="type-pill type-${type.identifier}">${escapeHtml(type.name)}</span>`).join("")}
             </div>
-            ${profile.combatClassification ? `
-              <div class="mt-4 rounded-xl bg-white/75 p-4">
-                <p class="text-xs font-bold uppercase text-slate-500">Clasificación de combate</p>
-                <p class="mt-1 text-lg font-black">${escapeHtml(profile.combatClassification.label)}</p>
-                <p class="mt-1 text-sm text-slate-600">${escapeHtml(profile.combatClassification.description)}</p>
-              </div>
-            ` : ""}
+            ${renderCombatClassification(profile)}
           </div>
           <div class="grid min-h-40 place-items-center rounded-2xl border border-slate-200 bg-white">
             ${profile.spriteUrl ? `<img class="h-36 w-36 object-contain [image-rendering:pixelated]" src="${escapeAttribute(profile.spriteUrl)}" alt="${escapeAttribute(profile.summary.name)}">` : "<span class=\"text-sm text-slate-500\">Sin sprite</span>"}
@@ -141,11 +142,69 @@ export class PokedexRenderer {
       </article>
     `;
     this.bindNatureSelector(profile, this.profileElement);
+    this.bindSectionToggles(this.profileElement);
+  }
+
+  bindRecommendationButtons({ onAlternatives, onCounters, onAdvantages }, rootElement = this.profileElement) {
+    rootElement.querySelectorAll("[data-recommendation-kind]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const profileId = Number(button.dataset.profileId);
+        if (button.dataset.recommendationKind === "alternatives") {
+          onAlternatives(profileId);
+          return;
+        }
+        if (button.dataset.recommendationKind === "advantages") {
+          onAdvantages(profileId);
+          return;
+        }
+        onCounters(profileId);
+      });
+    });
+  }
+
+  renderRecommendationModal({ title, description, items, emptyText, onSelect }) {
+    this.closeRecommendationModal();
+    const modal = this.profileElement.ownerDocument.createElement("div");
+    modal.className = "recommendation-modal";
+    modal.dataset.recommendationModal = "true";
+    modal.innerHTML = `
+      <div class="recommendation-backdrop" data-close-modal="true"></div>
+      <section class="recommendation-dialog" role="dialog" aria-modal="true" aria-label="${escapeAttribute(title)}">
+        <header>
+          <div>
+            <p class="text-xs font-bold uppercase text-red-600">Comparación</p>
+            <h2>${escapeHtml(title)}</h2>
+            <p>${escapeHtml(description)}</p>
+          </div>
+          <button type="button" class="recommendation-close" data-close-modal="true">Cerrar</button>
+        </header>
+        <div class="recommendation-list">
+          ${items.length ? items.map(renderRecommendationItem).join("") : `<p class="recommendation-empty">${escapeHtml(emptyText)}</p>`}
+        </div>
+      </section>
+    `;
+    modal.querySelectorAll("[data-close-modal]").forEach((item) => {
+      item.addEventListener("click", () => this.closeRecommendationModal());
+    });
+    modal.querySelectorAll("[data-recommendation-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const selected = items.find((item) => item.summary.id === Number(button.dataset.recommendationId));
+        this.closeRecommendationModal();
+        if (selected) {
+          onSelect(selected.summary);
+        }
+      });
+    });
+    this.profileElement.ownerDocument.body.append(modal);
+  }
+
+  closeRecommendationModal() {
+    this.profileElement.ownerDocument.querySelector("[data-recommendation-modal]")?.remove();
   }
 
   bindNatureSelector(profile, rootElement = this.profileElement) {
     const radarRoot = rootElement.querySelector("[data-radar-root]");
-    const natureButtons = rootElement.querySelectorAll("[data-nature-index]");
+    const natureButtons = rootElement.querySelectorAll("[data-nature-identifier]");
     if (!radarRoot) {
       return;
     }
@@ -153,9 +212,24 @@ export class PokedexRenderer {
       button.addEventListener("click", () => {
         natureButtons.forEach((item) => item.setAttribute("aria-pressed", "false"));
         button.setAttribute("aria-pressed", "true");
-        const index = Number(button.dataset.natureIndex);
-        const nature = profile.natureRecommendations[index];
+        const nature = getProfileNatures(profile).find((item) => item.identifier === button.dataset.natureIdentifier);
         radarRoot.innerHTML = renderRadarChart(applyNature(profile.stats, nature), nature);
+      });
+    });
+  }
+
+  bindSectionToggles(rootElement = this.profileElement) {
+    rootElement.querySelectorAll("[data-toggle-section]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const scope = button.closest("[data-toggle-container]") || button.closest("section") || rootElement;
+        const target = scope.querySelector(`[data-toggle-target="${button.dataset.toggleSection}"]`);
+        if (!target) {
+          return;
+        }
+        const expanded = button.getAttribute("aria-expanded") !== "false";
+        target.classList.toggle("hidden", expanded);
+        button.setAttribute("aria-expanded", String(!expanded));
+        button.textContent = expanded ? "Mostrar" : "Ocultar";
       });
     });
   }
@@ -201,7 +275,7 @@ function renderRadarChart(stats, selectedNature = null) {
   `;
 }
 
-function renderComparisonPanel(title, profile, fallbackMarkup = "") {
+function renderComparisonPanel(title, profile, fallbackMarkup = "", comparisonResult = null) {
   if (fallbackMarkup) {
     return `<section class="comparison-panel">${fallbackMarkup}</section>`;
   }
@@ -216,6 +290,7 @@ function renderComparisonPanel(title, profile, fallbackMarkup = "") {
   }
 
   const slot = title.endsWith("B") ? "secondary" : "primary";
+  const spriteOutcome = getSpriteOutcome(slot, comparisonResult);
   return `
     <details class="comparison-panel" data-profile-slot="${slot}" open>
       <summary class="comparison-summary">
@@ -230,15 +305,11 @@ function renderComparisonPanel(title, profile, fallbackMarkup = "") {
             <div class="mt-3 flex flex-wrap gap-2" aria-label="Tipos">
               ${profile.types.map((type) => `<span class="type-pill type-${type.identifier}">${escapeHtml(type.name)}</span>`).join("")}
             </div>
-            ${profile.combatClassification ? `
-              <div class="mt-4 rounded-xl bg-white/75 p-3">
-                <p class="text-xs font-bold uppercase text-slate-500">Clasificación</p>
-                <p class="mt-1 font-black">${escapeHtml(profile.combatClassification.label)}</p>
-              </div>
-            ` : ""}
+            ${renderCombatClassification(profile, true)}
           </div>
-          <div class="grid min-h-32 place-items-center rounded-2xl border border-slate-200 bg-white">
+          <div class="comparison-sprite-frame ${spriteOutcome.className}">
             ${profile.spriteUrl ? `<img class="h-28 w-28 object-contain [image-rendering:pixelated]" src="${escapeAttribute(profile.spriteUrl)}" alt="${escapeAttribute(profile.summary.name)}">` : "<span class=\"text-sm text-slate-500\">Sin sprite</span>"}
+            ${spriteOutcome.label ? `<span>${escapeHtml(spriteOutcome.label)}</span>` : ""}
           </div>
         </header>
         <section class="rounded-2xl border border-slate-200 p-4">
@@ -249,11 +320,16 @@ function renderComparisonPanel(title, profile, fallbackMarkup = "") {
           ${renderNatureSelector(profile)}
         </section>
         <section class="rounded-2xl border border-slate-200 p-4">
-          <h3 class="text-lg font-black">Habilidades</h3>
-          <ul class="mt-3 grid gap-3">
-            ${profile.abilities.map(renderAbility).join("")}
-          </ul>
-          ${renderSmogonAnalyses(profile.smogon?.analyses)}
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-lg font-black">Habilidades</h3>
+            <button type="button" class="section-toggle-button" data-toggle-section="abilities-${slot}" aria-expanded="true">Ocultar</button>
+          </div>
+          <div class="mt-3 grid gap-3" data-toggle-target="abilities-${slot}">
+            <ul class="grid gap-3">
+              ${profile.abilities.map(renderAbility).join("")}
+            </ul>
+            ${renderSmogonAnalyses(profile.smogon?.analyses)}
+          </div>
         </section>
         <section class="rounded-2xl border border-slate-200 p-4">
           <h3 class="text-lg font-black">Daño recibido por tipo</h3>
@@ -265,6 +341,103 @@ function renderComparisonPanel(title, profile, fallbackMarkup = "") {
       </div>
     </details>
   `;
+}
+
+function renderCombatClassification(profile, compact = false) {
+  if (!profile.combatClassification) {
+    return "";
+  }
+  return `
+    <div class="mt-4 rounded-xl bg-white/75 p-${compact ? "3" : "4"}">
+      <p class="text-xs font-bold uppercase text-slate-500">${compact ? "Clasificación" : "Clasificación de combate"}</p>
+      <p class="mt-1 ${compact ? "font-black" : "text-lg font-black"}">${escapeHtml(profile.combatClassification.label)}</p>
+      ${compact ? "" : `<p class="mt-1 text-sm text-slate-600">${escapeHtml(profile.combatClassification.description)}</p>`}
+      <div class="recommendation-actions">
+        <button type="button" data-recommendation-kind="alternatives" data-profile-id="${profile.summary.id}">Alternativas</button>
+        <button type="button" data-recommendation-kind="advantages" data-profile-id="${profile.summary.id}">Ventajas</button>
+        <button type="button" data-recommendation-kind="counters" data-profile-id="${profile.summary.id}">Riesgos</button>
+      </div>
+    </div>
+  `;
+}
+
+function evaluateComparison(primaryProfile, secondaryProfile) {
+  const primaryScore = estimateBattleScore(primaryProfile, secondaryProfile);
+  const secondaryScore = estimateBattleScore(secondaryProfile, primaryProfile);
+  const diff = Math.abs(primaryScore - secondaryScore);
+  const winner = diff < Math.max(primaryScore, secondaryScore) * 0.04
+    ? "tie"
+    : primaryScore > secondaryScore ? "primary" : "secondary";
+
+  return { winner, primaryScore, secondaryScore };
+}
+
+function estimateBattleScore(attacker, defender) {
+  const specialLeaning = attacker.stats.specialAttack >= attacker.stats.attack;
+  const offense = specialLeaning ? attacker.stats.specialAttack : attacker.stats.attack;
+  const defense = specialLeaning ? defender.stats.specialDefense : defender.stats.defense;
+  const typeMultiplier = getBestStabMultiplier(attacker, defender);
+  const speedEdge = attacker.stats.speed > defender.stats.speed ? 1.08 : 1;
+  const bulk = (attacker.stats.hp + attacker.stats.defense + attacker.stats.specialDefense) / 3;
+  const pressure = offense / Math.max(defense, 1);
+
+  return ((offense * typeMultiplier * pressure) + (attacker.stats.speed * 0.45) + (bulk * 0.18)) * speedEdge;
+}
+
+function getBestStabMultiplier(attacker, defender) {
+  const defensiveRows = [
+    ...defender.matchups.defensive.weaknesses,
+    ...defender.matchups.defensive.neutral,
+    ...defender.matchups.defensive.resistances,
+    ...defender.matchups.defensive.immunities,
+  ];
+  return attacker.types.reduce((best, type) => {
+    const row = defensiveRows.find((item) => item.type.identifier === type.identifier);
+    return Math.max(best, row?.multiplier ?? 1);
+  }, 1);
+}
+
+function getSpriteOutcome(slot, comparisonResult) {
+  if (!comparisonResult || comparisonResult.winner === "tie") {
+    return { className: "", label: comparisonResult?.winner === "tie" ? "Parejo" : "" };
+  }
+  if (comparisonResult.winner === slot) {
+    return { className: "comparison-sprite-winner", label: "Ventaja" };
+  }
+  return { className: "comparison-sprite-loser", label: "Riesgo" };
+}
+
+function renderRecommendationItem(item) {
+  const meta = item.outgoingMultiplier !== undefined
+    ? `${formatIncomingMultiplier(item.multiplier)} recibido / x${formatMultiplier(item.outgoingMultiplier)} con ${item.outgoingType?.name || ""} / defensa objetivo ${item.candidateDefense}`
+    : item.multiplier
+    ? `x${formatMultiplier(item.multiplier)} ${item.attackingType?.name || ""}${item.offSideMatch ? " / perfil ofensivo ideal" : ""}`
+    : `similitud ${(100 - Math.min(100, Math.round((item.score || 0) * 100))).toFixed(0)}%`;
+  return `
+    <button type="button" class="recommendation-item" data-recommendation-id="${item.summary.id}">
+      <span>${escapeHtml(formatRecommendationLabel(item))}</span>
+      <small>${escapeHtml(meta)}</small>
+    </button>
+  `;
+}
+
+function formatRecommendationLabel(item) {
+  return `${item.summary.name} ${formatStatsLine(item.stats)}`;
+}
+
+function formatStatsLine(stats) {
+  return `${stats.hp}/${stats.attack}/${stats.defense}/${stats.specialAttack}/${stats.specialDefense}/${stats.speed}`;
+}
+
+function formatMultiplier(value) {
+  return Number(value).toLocaleString("es", { maximumFractionDigits: 2 });
+}
+
+function formatIncomingMultiplier(value) {
+  if (Number(value) === 0) {
+    return "inmune";
+  }
+  return `resiste x${formatMultiplier(value)}`;
 }
 
 function renderStatComparison(primaryProfile, secondaryProfile) {
@@ -316,26 +489,58 @@ function renderBstBar(total) {
 }
 
 function renderNatureSelector(profile) {
-  if (!profile.natureRecommendations?.length) {
+  const recommended = profile.natureRecommendations || [];
+  const recommendedIds = new Set(recommended.map((nature) => nature.identifier));
+  const others = (profile.natures || []).filter((nature) => !recommendedIds.has(nature.identifier));
+  if (!recommended.length && !others.length) {
     return "";
   }
   return `
     <div class="mt-5 rounded-2xl bg-slate-50 p-4">
       <div class="flex flex-col gap-1">
-        <h4 class="font-black">Naturalezas sugeridas</h4>
+        <h4 class="font-black">Naturalezas</h4>
         <p class="text-sm text-slate-600">Selecciona una para ver como cambia el radar.</p>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <button type="button" data-nature-index="-1" aria-pressed="true" class="nature-button">Base</button>
-        ${profile.natureRecommendations.map((nature, index) => `
-          <button type="button" data-nature-index="${index}" aria-pressed="false" class="nature-button">
-            ${escapeHtml(nature.name)}
-            <span>+${escapeHtml(statLabel(nature.increasedStat))} / -${escapeHtml(statLabel(nature.decreasedStat))}</span>
-          </button>
-        `).join("")}
+        <button type="button" data-nature-identifier="" aria-pressed="true" class="nature-button">Base</button>
+      </div>
+      ${recommended.length ? renderNatureGroup("Sugeridas", recommended, true) : ""}
+      ${others.length ? renderNatureGroup("Resto", others, false) : ""}
+    </div>
+  `;
+}
+
+function renderNatureGroup(title, natures, suggested = false) {
+  const collapsed = !suggested;
+  const groupId = `natures-${suggested ? "suggested" : "rest"}-${natures.length}`;
+  return `
+    <div class="mt-4" data-toggle-container>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs font-black uppercase text-slate-500">${escapeHtml(title)}</p>
+        ${collapsed ? `<button type="button" class="section-toggle-button" data-toggle-section="${groupId}" aria-expanded="false">Mostrar</button>` : ""}
+      </div>
+      <div class="mt-2 flex flex-wrap gap-2 ${collapsed ? "hidden" : ""}" data-toggle-target="${groupId}">
+        ${natures.map((nature) => renderNatureButton(nature, suggested)).join("")}
       </div>
     </div>
   `;
+}
+
+function renderNatureButton(nature, suggested = false) {
+  return `
+    <button type="button" data-nature-identifier="${escapeAttribute(nature.identifier)}" aria-pressed="false" class="nature-button ${suggested ? "nature-button-suggested" : ""}">
+      ${escapeHtml(nature.name)}
+      <span>+${escapeHtml(statLabel(nature.increasedStat))} / -${escapeHtml(statLabel(nature.decreasedStat))}</span>
+    </button>
+  `;
+}
+
+function getProfileNatures(profile) {
+  const byIdentifier = new Map();
+  for (const nature of [...(profile.natureRecommendations || []), ...(profile.natures || [])]) {
+    byIdentifier.set(nature.identifier, nature);
+  }
+  return [...byIdentifier.values()];
 }
 
 function renderRadarLabel(stat, index, center, radius) {

@@ -42,6 +42,71 @@ header h1 {
   overflow-wrap: anywhere;
 }
 
+.app-header {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.app-title-block {
+  min-width: 0;
+}
+
+.app-search-panel {
+  min-width: 0;
+}
+
+.app-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.search-field {
+  position: relative;
+  min-width: 0;
+}
+
+.compare-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.2rem;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.5rem;
+  background: rgb(248 250 252);
+  padding: 0.75rem 1rem;
+  color: rgb(51 65 85);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.autocomplete-list {
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.75rem;
+  background: rgb(248 250 252);
+  margin-top: 0.75rem;
+}
+
+.app-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (min-width: 900px) {
+  .app-header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: center;
+  }
+
+  .app-search-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+}
+
 html.dark header,
 html.dark main section {
   border-color: rgb(30 41 59);
@@ -49,10 +114,16 @@ html.dark main section {
 }
 
 html.dark input,
-html.dark #autocomplete-results {
+html.dark .autocomplete-list {
   border-color: rgb(51 65 85);
   background-color: rgb(2 6 23);
   color: rgb(241 245 249);
+}
+
+html.dark .compare-toggle {
+  border-color: rgb(51 65 85);
+  background-color: rgb(2 6 23);
+  color: rgb(203 213 225);
 }
 
 html.dark #profile-panel > div {
@@ -307,6 +378,148 @@ html.dark .border-slate-300 {
   color: rgb(153 27 27);
 }
 
+.nature-button-suggested {
+  border-color: rgb(248 113 113);
+  box-shadow: inset 0 0 0 1px rgb(248 113 113 / 0.35);
+}
+
+.section-toggle-button {
+  border: 1px solid rgb(203 213 225);
+  border-radius: 0.5rem;
+  background: white;
+  color: rgb(51 65 85);
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.section-toggle-button:hover {
+  border-color: rgb(220 38 38);
+  background: rgb(254 242 242);
+  color: rgb(153 27 27);
+}
+
+.recommendation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.recommendation-actions button,
+.recommendation-close {
+  border: 1px solid rgb(203 213 225);
+  border-radius: 0.5rem;
+  background: white;
+  color: rgb(15 23 42);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 900;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.recommendation-actions button:hover,
+.recommendation-close:hover {
+  border-color: rgb(220 38 38);
+  background: rgb(254 242 242);
+  color: rgb(153 27 27);
+}
+
+.recommendation-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.recommendation-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(15 23 42 / 0.55);
+}
+
+.recommendation-dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1rem;
+  width: min(720px, calc(100vw - 2rem));
+  max-height: min(760px, calc(100vh - 2rem));
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.5rem;
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 0.24);
+}
+
+.recommendation-dialog header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.recommendation-dialog h2 {
+  margin-top: 0.25rem;
+  color: rgb(15 23 42);
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.recommendation-dialog header p:last-child {
+  margin-top: 0.35rem;
+  color: rgb(71 85 105);
+  font-size: 0.9rem;
+}
+
+.recommendation-list {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.recommendation-item {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.5rem;
+  background: rgb(248 250 252);
+  padding: 0.85rem 1rem;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.recommendation-item:hover {
+  border-color: rgb(248 113 113);
+  background: rgb(254 242 242);
+}
+
+.recommendation-item span {
+  color: rgb(15 23 42);
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.recommendation-item small,
+.recommendation-empty {
+  color: rgb(100 116 139);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .comparison-layout {
   display: grid;
   gap: 1rem;
@@ -354,8 +567,58 @@ html.dark .border-slate-300 {
   grid-template-columns: minmax(80px, 120px) minmax(0, 1fr) 74px;
   align-items: center;
   gap: 0.75rem;
+  border-top: 1px solid rgb(226 232 240);
+  padding: 0.85rem 0;
   font-size: 0.85rem;
   font-weight: 800;
+}
+
+.compare-stat-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.compare-stat-row:last-child {
+  padding-bottom: 0;
+}
+
+.compare-stat-row strong {
+  text-align: right;
+}
+
+.comparison-sprite-frame {
+  position: relative;
+  display: grid;
+  min-height: 8rem;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 1rem;
+  background: white;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.comparison-sprite-frame span {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.6rem;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.82);
+  color: white;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.comparison-sprite-winner {
+  border-color: rgb(34 197 94 / 0.75);
+  background: linear-gradient(135deg, rgb(220 252 231), rgb(240 253 244));
+}
+
+.comparison-sprite-loser {
+  border-color: rgb(248 113 113 / 0.85);
+  background: linear-gradient(135deg, rgb(254 226 226), rgb(255 241 242));
 }
 
 .compare-bars {
@@ -472,13 +735,72 @@ html.dark .nature-button[aria-pressed="true"] {
   color: rgb(254 226 226);
 }
 
+html.dark .section-toggle-button {
+  border-color: rgb(51 65 85);
+  background: rgb(15 23 42);
+  color: rgb(226 232 240);
+}
+
+html.dark .section-toggle-button:hover {
+  border-color: rgb(248 113 113);
+  background: rgb(69 10 10);
+  color: rgb(254 226 226);
+}
+
+html.dark .recommendation-actions button,
+html.dark .recommendation-close,
+html.dark .recommendation-dialog,
+html.dark .recommendation-item {
+  border-color: rgb(51 65 85);
+  background: rgb(15 23 42);
+  color: rgb(241 245 249);
+}
+
+html.dark .recommendation-item:hover,
+html.dark .recommendation-actions button:hover,
+html.dark .recommendation-close:hover {
+  border-color: rgb(248 113 113);
+  background: rgb(69 10 10);
+  color: rgb(254 226 226);
+}
+
+html.dark .recommendation-dialog h2,
+html.dark .recommendation-item span {
+  color: rgb(248 250 252);
+}
+
+html.dark .recommendation-dialog header p:last-child,
+html.dark .recommendation-item small,
+html.dark .recommendation-empty {
+  color: rgb(203 213 225);
+}
+
 html.dark .comparison-panel {
   border-color: rgb(51 65 85);
   background: rgb(15 23 42);
 }
 
+html.dark .compare-stat-row {
+  border-top-color: rgb(51 65 85);
+}
+
 html.dark .comparison-summary strong {
   color: rgb(248 250 252);
+}
+
+html.dark .comparison-sprite-frame {
+  border-color: rgb(51 65 85);
+  background: rgb(2 6 23);
+}
+
+html.dark .comparison-sprite-winner {
+  border-color: rgb(74 222 128 / 0.75);
+  background: linear-gradient(135deg, rgb(20 83 45), rgb(6 78 59));
+}
+
+html.dark .comparison-sprite-loser {
+  border-color: rgb(248 113 113 / 0.85);
+  background: linear-gradient(135deg, rgb(127 29 29), rgb(136 19 55));
 }
 
 html.dark .smogon-card,
@@ -521,7 +843,7 @@ body[data-theme="retro"] header {
 }
 
 body[data-theme="retro"] input,
-body[data-theme="retro"] #autocomplete-results,
+body[data-theme="retro"] .autocomplete-list,
 body[data-theme="retro"] #profile-panel > div {
   background: #d7f5df !important;
   border-color: #202020 !important;

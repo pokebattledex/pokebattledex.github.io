@@ -1,5 +1,5 @@
 export class PokedexEventController {
-  constructor({ inputElement, secondaryInputElement, compareToggle, compareSearchPanel, reloadButton, darkModeToggle, themeStyleToggle, renderer, searchPokemon, getPokemonProfile, reloadCache }) {
+  constructor({ inputElement, secondaryInputElement, compareToggle, compareSearchPanel, reloadButton, darkModeToggle, themeStyleToggle, renderer, searchPokemon, getPokemonProfile, getPokemonAlternatives, getPokemonCounters, getPokemonAdvantages, reloadCache }) {
     this.inputElement = inputElement;
     this.secondaryInputElement = secondaryInputElement;
     this.compareToggle = compareToggle;
@@ -10,6 +10,9 @@ export class PokedexEventController {
     this.renderer = renderer;
     this.searchPokemon = searchPokemon;
     this.getPokemonProfile = getPokemonProfile;
+    this.getPokemonAlternatives = getPokemonAlternatives;
+    this.getPokemonCounters = getPokemonCounters;
+    this.getPokemonAdvantages = getPokemonAdvantages;
     this.reloadCache = reloadCache;
     this.searchTimeouts = new Map();
     this.compareEnabled = false;
@@ -83,11 +86,73 @@ export class PokedexEventController {
   renderCurrentProfiles() {
     if (this.compareEnabled) {
       this.renderer.renderComparison(this.primaryProfile, this.secondaryProfile);
+      this.bindRecommendationActions();
       return;
     }
     if (this.primaryProfile) {
       this.renderer.renderProfile(this.primaryProfile);
+      this.bindRecommendationActions();
     }
+  }
+
+  bindRecommendationActions() {
+    this.renderer.bindRecommendationButtons({
+      onAlternatives: (profileId) => this.openRecommendations("alternatives", profileId),
+      onCounters: (profileId) => this.openRecommendations("counters", profileId),
+      onAdvantages: (profileId) => this.openRecommendations("advantages", profileId),
+    });
+  }
+
+  async openRecommendations(kind, profileId) {
+    const target = this.findLoadedProfile(profileId);
+    if (!target) {
+      this.renderer.setStatus("No se encontro el perfil cargado", "error");
+      return;
+    }
+
+    const isAlternatives = kind === "alternatives";
+    const isAdvantages = kind === "advantages";
+    const label = isAlternatives ? "alternativas" : isAdvantages ? "ventajas" : "riesgos";
+    this.renderer.setStatus(`Buscando ${label} para ${target.summary.name}...`, "info");
+    try {
+      const items = isAlternatives
+        ? await this.getPokemonAlternatives(target.summary.id)
+        : isAdvantages
+          ? await this.getPokemonAdvantages(target.summary.id)
+          : await this.getPokemonCounters(target.summary.id);
+      this.renderer.renderRecommendationModal({
+        title: `${isAlternatives ? "Alternativas" : isAdvantages ? "Ventajas" : "Riesgos"} para ${target.summary.name}`,
+        description: isAlternatives
+          ? "Mismos tipos, ordenados por similitud vectorial de stats base."
+          : isAdvantages
+            ? "Rivales cuyos ataques por tipo quedan inmunes o resistidos, priorizando el lado ofensivo propio."
+            : "Ordenados por ventaja ofensiva contra sus tipos y por el lado ofensivo que ataca su defensa mas baja.",
+        items,
+        emptyText: isAlternatives
+          ? "No hay alternativas con la misma combinacion de tipos."
+          : isAdvantages
+            ? "No hay ventajas claras por inmunidad o resistencia."
+            : "No hay riesgos claros por tipo.",
+        onSelect: (pokemon) => this.selectRecommendedPokemon(pokemon),
+      });
+      this.renderer.setStatus(`${items.length} ${label}`, items.length ? "ok" : "warn");
+    } catch (error) {
+      this.renderer.setStatus(error.message || "No se pudieron calcular recomendaciones", "error");
+    }
+  }
+
+  async selectRecommendedPokemon(pokemon) {
+    if (!this.compareEnabled) {
+      this.compareEnabled = true;
+      this.compareToggle.checked = true;
+      this.compareSearchPanel.classList.remove("hidden");
+    }
+    await this.selectPokemon(pokemon, "secondary");
+  }
+
+  findLoadedProfile(profileId) {
+    return [this.primaryProfile, this.secondaryProfile]
+      .find((profile) => profile?.summary.id === Number(profileId)) || null;
   }
 
   getInput(slot) {

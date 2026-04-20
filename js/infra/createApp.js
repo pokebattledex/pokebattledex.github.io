@@ -1,7 +1,11 @@
 import { GetPokemonPokedexProfile } from "../application/GetPokemonPokedexProfile.js";
+import { GetPokemonAlternatives } from "../application/GetPokemonAlternatives.js";
+import { GetPokemonCounters } from "../application/GetPokemonCounters.js";
+import { GetPokemonAdvantages } from "../application/GetPokemonAdvantages.js";
 import { SearchPokemonForPokedex } from "../application/SearchPokemonForPokedex.js";
 import { TypeMatchupService } from "../domain/typeMatchupService.js";
 import { StatAnalysisService } from "../domain/statAnalysisService.js";
+import { PokemonRecommendationService } from "../domain/pokemonRecommendationService.js";
 import { CompositePokemonRepository } from "./CompositePokemonRepository.js";
 import { CsvDataSource } from "./CsvDataSource.js";
 import { CsvPokemonRepository } from "./CsvPokemonRepository.js";
@@ -44,6 +48,15 @@ export async function createApp({ documentRef = document } = {}) {
     async getPokemonProfile(identifierOrId) {
       return appContext.getPokemonPokedexProfile.execute(identifierOrId);
     },
+    async getPokemonAlternatives(identifierOrId, options) {
+      return appContext.getPokemonAlternatives.execute(identifierOrId, options);
+    },
+    async getPokemonCounters(identifierOrId, options) {
+      return appContext.getPokemonCounters.execute(identifierOrId, options);
+    },
+    async getPokemonAdvantages(identifierOrId, options) {
+      return appContext.getPokemonAdvantages.execute(identifierOrId, options);
+    },
     clearCache() {
       cacheRepository.clearNamespace();
     },
@@ -71,6 +84,9 @@ export async function createApp({ documentRef = document } = {}) {
     renderer,
     searchPokemon: api.searchPokemon,
     getPokemonProfile: api.getPokemonProfile,
+    getPokemonAlternatives: api.getPokemonAlternatives,
+    getPokemonCounters: api.getPokemonCounters,
+    getPokemonAdvantages: api.getPokemonAdvantages,
     reloadCache: api.reloadCache,
   });
   controller.bind();
@@ -109,6 +125,7 @@ async function buildContext({ cacheRepository, dataSource, forceReload = false }
   });
   const searchRepository = new FusePokemonSearchRepository();
   searchRepository.buildIndex(pokemonRepository.getSummaryList());
+  const recommendationService = new PokemonRecommendationService();
 
   return {
     cacheRepository,
@@ -120,5 +137,8 @@ async function buildContext({ cacheRepository, dataSource, forceReload = false }
       pokemonRepository,
       new TypeMatchupService(typeChartRepository),
     ),
+    getPokemonAlternatives: new GetPokemonAlternatives(pokemonRepository, recommendationService),
+    getPokemonCounters: new GetPokemonCounters(pokemonRepository, recommendationService, typeChartRepository),
+    getPokemonAdvantages: new GetPokemonAdvantages(pokemonRepository, recommendationService, typeChartRepository),
   };
 }

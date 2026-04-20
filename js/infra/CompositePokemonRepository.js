@@ -11,6 +11,14 @@ export class CompositePokemonRepository {
     return this.csvPokemonRepository.getSummaryList();
   }
 
+  getBattleCandidateList() {
+    return this.csvPokemonRepository.getBattleCandidateList(this.typeChartRepository);
+  }
+
+  getBattleCandidate(identifierOrId) {
+    return this.csvPokemonRepository.getBattleCandidate(identifierOrId, this.typeChartRepository);
+  }
+
   async getProfileById(id) {
     const summary = this.csvPokemonRepository.getSummaryById(id);
     if (!summary) {
@@ -33,9 +41,10 @@ export class CompositePokemonRepository {
     const apiPokemon = await this.getApiPokemon(summary.identifier);
     const stats = this.csvPokemonRepository.getStatsByPokemonId(summary.id);
     const combatClassification = this.statAnalysisService.classify(stats);
+    const natures = this.csvPokemonRepository.getNatures();
     const natureRecommendations = this.statAnalysisService.recommendNatures(
       combatClassification,
-      this.csvPokemonRepository.getNatures(),
+      natures,
     );
     const smogon = await this.smogonRepository.getByPokemon(summary);
 
@@ -44,6 +53,7 @@ export class CompositePokemonRepository {
       spriteUrl: apiPokemon?.sprites?.front_default || apiPokemon?.sprites?.other?.["official-artwork"]?.front_default || "",
       combatClassification,
       natureRecommendations,
+      natures,
       smogon,
     });
   }

@@ -1,9 +1,11 @@
 export class PokemonSummary {
-  constructor({ id, identifier, name, normalizedName }) {
+  constructor({ id, identifier, name, normalizedName, speciesId = null, isDefault = false }) {
     this.id = Number(id);
     this.identifier = identifier;
     this.name = name || identifier;
     this.normalizedName = normalizedName || normalizeText(this.name);
+    this.speciesId = speciesId === null || speciesId === undefined ? null : Number(speciesId);
+    this.isDefault = Boolean(isDefault);
   }
 }
 
@@ -55,7 +57,7 @@ export class TypeMatchup {
 }
 
 export class PokemonProfile {
-  constructor({ summary, spriteUrl, types, stats, abilities, matchups, combatClassification, natureRecommendations, smogon }) {
+  constructor({ summary, spriteUrl, types, stats, abilities, matchups, combatClassification, natureRecommendations, natures, smogon }) {
     this.summary = summary;
     this.spriteUrl = spriteUrl || "";
     this.types = types;
@@ -64,6 +66,7 @@ export class PokemonProfile {
     this.matchups = matchups;
     this.combatClassification = combatClassification || null;
     this.natureRecommendations = natureRecommendations || [];
+    this.natures = natures || [];
     this.smogon = smogon || { analyses: [], sets: [] };
   }
 }

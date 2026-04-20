@@ -14,12 +14,14 @@ const STAT_IDENTIFIERS = {
 export class CsvPokemonRepository {
   constructor({ pokemon, pokemonStats, pokemonAbilities, pokemonTypes, abilities, abilityNames, abilityFlavorText, natures, natureNames }) {
     this.summaries = pokemon
-      .filter((row) => row.is_default === "1")
+      .filter((row) => row.id && row.identifier)
       .map((row) => new PokemonSummary({
         id: row.id,
         identifier: row.identifier,
         name: formatIdentifier(row.identifier),
         normalizedName: normalizeText(row.identifier),
+        speciesId: row.species_id,
+        isDefault: row.is_default === "1",
       }));
 
     this.summaryById = new Map(this.summaries.map((summary) => [summary.id, summary]));
@@ -38,6 +40,7 @@ export class CsvPokemonRepository {
       increasedStat: STAT_IDENTIFIERS[row.increased_stat_id],
       decreasedStat: STAT_IDENTIFIERS[row.decreased_stat_id],
     }));
+    this.battleCandidateCache = null;
   }
 
   getSummaryList() {
@@ -95,7 +98,31 @@ export class CsvPokemonRepository {
       .filter(Boolean);
   }
 
-  createPartialProfile(summary, { types = [], spriteUrl = "", combatClassification = null, natureRecommendations = [], smogon = null } = {}) {
+  getBattleCandidateList(typeChartRepository) {
+    if (!this.battleCandidateCache) {
+      this.battleCandidateCache = this.summaries
+        .map((summary) => ({
+          summary,
+          stats: this.getStatsByPokemonId(summary.id),
+          types: this.getTypesByPokemonId(summary.id, typeChartRepository),
+        }))
+        .filter((candidate) => candidate.types.length && statTotal(candidate.stats) > 0);
+    }
+    return this.battleCandidateCache;
+  }
+
+  getBattleCandidate(identifierOrId, typeChartRepository) {
+    const summary = Number.isInteger(Number(identifierOrId))
+      ? this.getSummaryById(Number(identifierOrId))
+      : this.getSummaryByIdentifier(String(identifierOrId).trim().toLowerCase().replaceAll(" ", "-"));
+    if (!summary) {
+      return null;
+    }
+    return this.getBattleCandidateList(typeChartRepository)
+      .find((candidate) => candidate.summary.id === summary.id) || null;
+  }
+
+  createPartialProfile(summary, { types = [], spriteUrl = "", combatClassification = null, natureRecommendations = [], natures = [], smogon = null } = {}) {
     return new PokemonProfile({
       summary,
       spriteUrl,
@@ -105,6 +132,7 @@ export class CsvPokemonRepository {
       matchups: null,
       combatClassification,
       natureRecommendations,
+      natures,
       smogon,
     });
   }
@@ -168,6 +196,11 @@ function buildAbilityDescriptionMap(rows) {
 
 function normalizeFlavorText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function statTotal(stats) {
+  return ["hp", "attack", "defense", "specialAttack", "specialDefense", "speed"]
+    .reduce((total, key) => total + Number(stats[key] || 0), 0);
 }
 
 function formatIdentifier(identifier) {
